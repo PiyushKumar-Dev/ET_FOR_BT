@@ -1,0 +1,194 @@
+version: '3.8'
+
+services:
+  # ─── MongoDB ─────────────────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: ig-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: industrial_guardian
+    networks:
+      - ig-network
+    restart: unless-stopped
+
+  # ─── SCADA Intelligence Agent ─────────────────────────────────────────────────
+  scada-agent:
+    build:
+      context: ./agents/scada-agent
+      dockerfile: Dockerfile
+    container_name: ig-scada-agent
+    ports:
+      - "8001:8001"
+    environment:
+      - SCADA_AGENT_PORT=8001
+    volumes:
+      - ./data-generators:/app/data-generators:ro
+    networks:
+      - ig-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ─── IoT Intelligence Agent ───────────────────────────────────────────────────
+  iot-agent:
+    build:
+      context: ./agents/iot-agent
+      dockerfile: Dockerfile
+    container_name: ig-iot-agent
+    ports:
+      - "8002:8002"
+    environment:
+      - IOT_AGENT_PORT=8002
+    volumes:
+      - ./data-generators:/app/data-generators:ro
+    networks:
+      - ig-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ─── Vision Intelligence Agent ────────────────────────────────────────────────
+  vision-agent:
+    build:
+      context: ./agents/vision-agent
+      dockerfile: Dockerfile
+    container_name: ig-vision-agent
+    ports:
+      - "8003:8003"
+    environment:
+      - VISION_AGENT_PORT=8003
+    volumes:
+      - ./data-generators:/app/data-generators:ro
+      - yolo_cache:/root/.config/Ultralytics
+    networks:
+      - ig-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ─── Permit Intelligence Agent ────────────────────────────────────────────────
+  permit-agent:
+    build:
+      context: ./agents/permit-agent
+      dockerfile: Dockerfile
+    container_name: ig-permit-agent
+    ports:
+      - "8004:8004"
+    environment:
+      - PERMIT_AGENT_PORT=8004
+      - IOT_AGENT_URL=http://iot-agent:8002
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ./data-generators:/app/data-generators:ro
+    networks:
+      - ig-network
+    depends_on:
+      - iot-agent
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ─── Master Risk Intelligence Agent ──────────────────────────────────────────
+  master-agent:
+    build:
+      context: ./agents/master-agent
+      dockerfile: Dockerfile
+    container_name: ig-master-agent
+    ports:
+      - "8005:8005"
+    environment:
+      - MASTER_AGENT_PORT=8005
+      - SCADA_AGENT_URL=http://scada-agent:8001
+      - IOT_AGENT_URL=http://iot-agent:8002
+      - VISION_AGENT_URL=http://vision-agent:8003
+      - PERMIT_AGENT_URL=http://permit-agent:8004
+      - BACKEND_URL=http://backend:3000
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ./data-generators:/app/data-generators:ro
+    networks:
+      - ig-network
+    depends_on:
+      - scada-agent
+      - iot-agent
+      - vision-agent
+      - permit-agent
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ─── Backend Orchestrator ─────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ig-backend
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_PORT=3000
+      - MONGODB_URI=mongodb://mongodb:27017/industrial_guardian
+      - SCADA_AGENT_URL=http://scada-agent:8001
+      - IOT_AGENT_URL=http://iot-agent:8002
+      - VISION_AGENT_URL=http://vision-agent:8003
+      - PERMIT_AGENT_URL=http://permit-agent:8004
+      - MASTER_AGENT_URL=http://master-agent:8005
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - NODE_ENV=production
+      - DEV_MOCK_MODE=false
+    networks:
+      - ig-network
+    depends_on:
+      - mongodb
+      - master-agent
+    restart: unless-stopped
+
+  # ─── Frontend Dashboard ───────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ig-frontend
+    ports:
+      - "5173:80"
+    environment:
+      - VITE_BACKEND_URL=http://localhost:3000
+    networks:
+      - ig-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+    driver: local
+  yolo_cache:
+    driver: local
+
+networks:
+  ig-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
