@@ -103,7 +103,7 @@ setupSocketHandlers(io);
 
 // ─── Database & Startup ───────────────────────────────────────────────────────
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/industrial_guardian';
-const PORT = parseInt(process.env.BACKEND_PORT || '3000');
+const PORT = parseInt(process.env.PORT || process.env.BACKEND_PORT || '3000');
 const DEV_MOCK_MODE = process.env.DEV_MOCK_MODE === 'true';
 
 function shouldEnableDevMockMode() {
@@ -134,7 +134,7 @@ async function startServer() {
     }
 
     server.listen(PORT, () => {
-      console.log(`[Backend] Server running on http://localhost:${PORT}`);
+      console.log(`[Backend] Server running on port ${PORT}`);
       console.log(`[Backend] Socket.IO ready`);
     });
   } catch (err) {
