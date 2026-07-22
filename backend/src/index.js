@@ -88,6 +88,32 @@ app.post('/api/internal/master-update', (req, res) => {
   res.json({ received: true });
 });
 
+app.get('/', (req, res) => {
+  res.json({
+    service: 'Industrial Guardian AI Backend',
+    status: 'running',
+    health: '/health',
+    api: '/api'
+  });
+});
+
+app.get('/api', (req, res) => {
+  res.json({
+    message: 'Industrial Guardian API',
+    endpoints: [
+      '/api/facility',
+      '/api/assets',
+      '/api/alerts',
+      '/api/zones',
+      '/api/incidents',
+      '/api/permits',
+      '/api/personnel',
+      '/api/scenario',
+      '/api/agents'
+    ]
+  });
+});
+
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({
