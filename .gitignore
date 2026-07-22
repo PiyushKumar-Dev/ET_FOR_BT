@@ -85,8 +85,8 @@ yolov8n.pt
 *.sqlite3
 
 # MongoDB Local Data
-data/
-mongodb-data/
+# MongoDB Local Data
+/mongodb-data/
 
 # ==========================================
 # Docker
