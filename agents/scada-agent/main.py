@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 import threading
 from collections import deque
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../data-generators'))
+sys.path.insert(0, "/data-generators")
 from facility_config import ASSETS, ASSET_LOOKUP, FACILITY_CONFIG
 from simulation_engine import (
     FacilitySimulationEngine, FacilityState,
@@ -551,5 +551,5 @@ async def clear_anomalies():
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("SCADA_AGENT_PORT", 8001))
+    port = int(os.environ.get("PORT", os.environ.get("SCADA_AGENT_PORT", 8001)))
     uvicorn.run(app, host="0.0.0.0", port=port)
